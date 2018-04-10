@@ -225,7 +225,7 @@ def make_unet(X, training, flags=None):
 
     return tf.layers.conv2d(
         conv9,
-        2, (1, 1),
+        1, (1, 1),
         name='final',
         #activation=tf.nn.sigmoid,
         padding='same')
