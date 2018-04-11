@@ -14,34 +14,9 @@ import skimage.exposure
 import skimage.transform 
 
 
-# In[2]:
-
-
-path = "../data/stage_1_train/"
-names = os.listdir(path)
-
-
-# In[3]:
-
-
-base_img = np.load("../data/stage_1_processed/train/train_01d44a26f6680c42ba94c9bc6339228579a95d0e2695b149b7cc0c9592b21baf.npy")[:,:,:]
-plt.title("Baseline")
-plt.imshow(base_img[:,:,0])
-plt.show()
-
-# # resize using cv2.resize
-# imgx3_simple = cv2.resize(base_img, (base_img.shape[1]*3,base_img.shape[0]*3),interpolation=cv2.INTER_AREA)
-# plt.figure(figsize=(12,12))
-# plt.title("The Wrong Way: Saw Tooth")
-
-
-# In[168]:
-
 
 def resize_smooth(img, ratios):       
     resized_img = np.zeros((int(img.shape[0] * ratios[0]), int(img.shape[1] * ratios[1]), img.shape[2]))
-    print(img.shape)
-    print(resized_img.shape)
     for i in range(1,img.shape[2]):
         layer = np.zeros((int(img.shape[0] * ratios[0]), int(img.shape[1] * ratios[1])))
         _, cnts_base, hierarchy = cv2.findContours(img[:,:,i].copy().astype("uint8"), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
@@ -55,18 +30,11 @@ def resize_smooth(img, ratios):
         resized_img[:,:,i] = layer.astype(int)
       
     main_layer = cv2.resize(img[:,:,0], (resized_img.shape[1], resized_img.shape[0]),interpolation=cv2.INTER_NEAREST)
-    print(main_layer.shape)
     resized_img[:,:,0] = main_layer
     return resized_img
 
 
 # In[5]:
-
-
-plt.figure(figsize=(10,10))
-plt.imshow(resize_smooth(base_img, [1,0.5])[:,:,1], cmap='gray')
-plt.show()
-
 
 # In[116]:
 
@@ -94,15 +62,6 @@ def affine(im, tform):
 # In[43]:
 
 
-tform = generate_affine(base_img, shear=20)
-
-plt.figure(figsize=(10,10))
-plt.imshow(affine(resize_smooth(base_img, [1,0.5]),  tform)[:,:,1], cmap='gray')
-plt.show()
-
-
-# In[164]:
-
 
 class Transformation: 
     def __init__(self,
@@ -121,22 +80,26 @@ class Transformation:
         self.vertical_flip = vertical_flip
         self.horizontal_flip = horizontal_flip
     
-    def generate_random_transformation(self, im):
-        self.log = np.random.randint(0,2)
-        self.sigmoid = np.random.randint(0,2)
-        self.affine = generate_affine(im, rotation=np.random.randint(-20,20),shear=np.random.randint(-20,20))
-        self.ratios = (np.random.random(2) + 1) / 2
-        self.vertical_flip = np.random.randint(0,2)
-        self.horizontal_flip = np.random.randint(0,2)
+    def generate_random_transformation(im):
+    	return Transformation(im.
+    		np.random.randint(0,2),
+    		np.random.randint(0,2),
+        	np.random.randint(-20,20),
+        	np.random.randint(-20,20),
+        	(np.random.random(2) + 1) / 2,
+        	np.random.randint(0,2),
+        	np.random.randint(0,2))
+
         
-        return self
-        
-    def generate_geometrical(self, im):
-        self.generate_random_transformation(im)
-        self.log = 0
-        self.sigmoid = 0
-        
-        return self
+    def generate_geometrical(im):
+        return Transformation(im,
+        	0,
+    		0,
+        	np.random.randint(-20,20),
+        	np.random.randint(-20,20),
+        	(np.random.random(2) + 4) / 4.5,
+        	np.random.randint(0,2),
+        	np.random.randint(0,2))
         
     def apply(self, im):
         ## BE CAREFUL APPLY ONLY ON THE SAME IMAGE
@@ -174,57 +137,4 @@ class Transformation:
     
 
     
-
-
-# In[165]:
-
-
-trnsf = Transformation(base_img,ratios=np.array([1.1,0.7]), rotation=10, shear=10, vertical_flip=1)
-
-
-# In[166]:
-
-
-trnsf.ratios
-
-
-# In[167]:
-
-
-1 / trnsf.ratios
-
-
-# In[169]:
-
-
-plt.imshow(base_img[:,:,0],cmap='gray')
-plt.show()
-
-
-# In[170]:
-
-
-plt.imshow(trnsf.apply(base_img)[:,:,0],cmap='gray')
-plt.show()
-
-
-# In[171]:
-
-
-plt.imshow(trnsf.apply_inverse(trnsf.apply(base_img))[:,:,0],cmap='gray')
-plt.show()
-
-
-# In[174]:
-
-
-plt.figure(figsize = (10,10))
-plt.imshow(trnsf.apply_inverse(trnsf.apply(base_img))[:,:,1] + base_img[:-1,:,1], cmap='gray')
-plt.show()
-
-
-# In[177]:
-
-
-trnsf.apply(base_img)[:,:,1].max()
 
