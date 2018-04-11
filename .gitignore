@@ -78,5 +78,7 @@ debian/files
 # tf_logs
 tf_logs/
 
+#
+model/
 # data
 data/
