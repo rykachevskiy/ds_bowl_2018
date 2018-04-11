@@ -50,11 +50,12 @@ def generate_affine(im, zoom=1.0, rotation=0, shear=0, translation=(0, 0)):
     return tform
 
 def affine(im, tform): 
-    new_im = skimage.transform.warp(im, tform)
+    new_im = skimage.transform.warp(im, tform, preserve_range=True)
     
-    new_im[:,:,0] = new_im[:,:,0] / 255
+    new_im[:,:,0] = new_im[:,:,0]
     for i in range(1, im.shape[2]):
         new_im[:,:,i] = (cv2.morphologyEx(new_im[:,:,i], cv2.MORPH_CLOSE, np.ones((3,3))) > 0).astype(int)
+        #new_im[:,:,i] = (cv2.morphologyEx(new_im[:,:,i], cv2.MORPH_CLOSE, np.ones((3,3))) > 0).astype(int)
 
     return new_im
 
@@ -101,7 +102,7 @@ class Transformation:
         	np.random.randint(0,2),
         	np.random.randint(0,2))
         
-    def apply(self, im):
+    def apply(self, im, normalize=True):
         ## BE CAREFUL APPLY ONLY ON THE SAME IMAGE
 #         if self.log:
 #             im[:,:,0] = skimage.exposure.adjust_log(im[:,:,0])
@@ -117,10 +118,12 @@ class Transformation:
         if self.horizontal_flip:
             im = im[:,::-1,:]
             
-        im[:,:,0] /= im[:,:,0].max()
+        if normalize:
+            im[:,:,0] -= im[:,:,0].min()
+            im[:,:,0] /= im[:,:,0].max()
         return im
     
-    def apply_inverse(self, im):
+    def apply_inverse(self, im, normalize=True):
         ##TODO apply log and sigmoid
         
         if self.vertical_flip:
@@ -132,7 +135,9 @@ class Transformation:
         im = resize_smooth(im, 1 / self.ratios)
         im = affine(im, self.affine.inverse)
         
-        
+        if normalize:
+            im[:,:,0] -= im[:,:,0].min()
+            im[:,:,0] /= im[:,:,0].max()
         return im
     
 
