@@ -67,6 +67,8 @@ def affine(im, tform):
 class Transformation: 
     def __init__(self,
                  im,
+                inv=0,
+                gamma=1,
                 log=0,
                 sigmoid=0,
                 rotation=0,
@@ -74,6 +76,8 @@ class Transformation:
                 ratios=np.array([1,1]),
                 vertical_flip=0,
                 horizontal_flip=0):
+        self.inv = inv
+        self.gamma = gamma
         self.log = log
         self.sigmoid = sigmoid
         self.affine = generate_affine(im, rotation=rotation,shear=shear)
@@ -82,18 +86,22 @@ class Transformation:
         self.horizontal_flip = horizontal_flip
     
     def generate_random_transformation(im):
-    	return Transformation(im.
+    	return Transformation(im,
+            np.random.randint(0,2),
+            np.random.random() + 0.5,                  
     		np.random.randint(0,2),
     		np.random.randint(0,2),
         	np.random.randint(-20,20),
         	np.random.randint(-20,20),
-        	(np.random.random(2) + 1) / 2,
+        	(np.random.random(2) + 4) / 4.5,
         	np.random.randint(0,2),
         	np.random.randint(0,2))
 
         
     def generate_geometrical(im):
         return Transformation(im,
+            0,
+            1,
         	0,
     		0,
         	np.random.randint(-20,20),
@@ -104,24 +112,31 @@ class Transformation:
         
     def apply(self, im, normalize=True):
         ## BE CAREFUL APPLY ONLY ON THE SAME IMAGE
-#         if self.log:
-#             im[:,:,0] = skimage.exposure.adjust_log(im[:,:,0])
-#         if self.sigmoid:
-#             im[:,:,0] = skimage.exposure.adjust_sigmoid(im[:,:,0])
+        
+        im_c = im.copy()
+        if self.inv:
+            im_c[:,:,0] = 1 - im_c[:,:,0]
+        if self.gamma:
+            im_c[:,:,0] = skimage.exposure.adjust_gamma(im_c[:,:,0], )
+        if self.log:
+            im_c[:,:,0] = skimage.exposure.adjust_log(im_c[:,:,0])
+        if self.sigmoid:
+            im_c[:,:,0] = skimage.exposure.adjust_sigmoid(im_c[:,:,0])
             
-        im = affine(im, self.affine)
-        im = resize_smooth(im, self.ratios)
+         
+        im_c = affine(im_c, self.affine)
+        im_c = resize_smooth(im_c, self.ratios)
         
         if self.vertical_flip:
-            im = im[::-1,:,:]
+            im_c = im_c[::-1,:,:]
                 
         if self.horizontal_flip:
-            im = im[:,::-1,:]
+            im_c = im_c[:,::-1,:]
             
         if normalize:
-            im[:,:,0] -= im[:,:,0].min()
-            im[:,:,0] /= im[:,:,0].max()
-        return im
+            im_c[:,:,0] -= im_c[:,:,0].min()
+            im_c[:,:,0] /= im_c[:,:,0].max()
+        return im_c
     
     def apply_inverse(self, im, normalize=True):
         ##TODO apply log and sigmoid
