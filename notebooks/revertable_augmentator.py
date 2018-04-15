@@ -33,10 +33,41 @@ def resize_smooth(img, ratios):
     resized_img[:,:,0] = main_layer
     return resized_img
 
+def affine_smooth(im, zoom=1.0, rotation=0, shear=0, translation=(0, 0)):       
+    new_im = np.zeros(im.shape)
+    #center_shift = np.array((im.shape[0], im.shape[1])) / 2
+    center_shift = np.zeros(2)
+    mat = np.array([[zoom * np.cos(np.deg2rad(-rotation)),- zoom * np.sin(np.deg2rad(-rotation-shear)), 0], [zoom * np.sin(np.deg2rad(-rotation)),  zoom  * np.cos(np.deg2rad(-rotation-shear)), 0]])    
 
-# In[5]:
+    for i in range(1,im.shape[2]):
+        layer = np.zeros((im.shape[0], im.shape[1]))
+        _, cnts_base, hierarchy = cv2.findContours(im[:,:,i].copy().astype("uint8"), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
-# In[116]:
+        new_cnts = []
+        for c in cnts_base:
+            new_c = np.zeros_like(c)
+            
+
+#            for j, point in enumerate(c):
+#                #[77 42]
+#                new_c[j, 0, 0] = zoom * (point[0, 0] - center_shift[0]) * np.cos(np.deg2rad(-rotation)) - zoom * (point[0, 1] - center_shift[1]) * np.sin(np.deg2rad(-rotation+shear)) + center_shift[0]
+#                new_c[j, 0, 1] = zoom * (point[0, 0] - center_shift[0]) * np.sin(np.deg2rad(-rotation)) + zoom * (point[0, 1] - center_shift[1]) * np.cos(np.deg2rad(-rotation+shear)) + center_shift[1]
+
+            new_c[:, 0, 0] = mat[0,0] * (c[:, 0, 0] - center_shift[0])  + mat[0,1] * (c[:, 0, 1] - center_shift[1]) + center_shift[0]
+            new_c[:, 0, 1] = mat[1,0] * (c[:, 0, 0] - center_shift[0])  + mat[1,1] * (c[:, 0, 1] - center_shift[1]) + center_shift[1]
+
+            c = np.round_(new_c).astype(int)
+            #print("cn\n", c)
+            new_cnts.append(c)
+        
+        cv2.drawContours(layer,new_cnts,-1,1,-1)
+        new_im[:,:,i] = layer.astype(int)
+      
+    #tform = generate_affine(im, zoom, rotation, shear, translation)
+    #main_layer = skimage.transform.warp(im[:,:,0], tform, order = 1, preserve_range=True)
+    main_layer = cv2.warpAffine(im[:,:,0].copy(), mat, im[:,:,0].shape[::-1])
+    new_im[:,:,0] = main_layer
+    return new_im#, mat
 
 
 def generate_affine(im, zoom=1.0, rotation=0, shear=0, translation=(0, 0)):
@@ -45,16 +76,17 @@ def generate_affine(im, zoom=1.0, rotation=0, shear=0, translation=(0, 0)):
     tform_uncenter = skimage.transform.SimilarityTransform(translation=center_shift)
 
     tform_augment = skimage.transform.AffineTransform(scale=(1/zoom, 1/zoom), rotation=np.deg2rad(rotation), shear=np.deg2rad(shear), translation=translation)
-    tform = tform_center + tform_augment + tform_uncenter
-
+    #tform = tform_center + tform_augment + tform_uncenter
+    tform = tform_augment
     return tform
 
 def affine(im, tform): 
-    new_im = skimage.transform.warp(im, tform, preserve_range=True)
+    new_im = skimage.transform.warp(im, tform, order = 1,preserve_range=True)
     
     new_im[:,:,0] = new_im[:,:,0]
-    for i in range(1, im.shape[2]):
-        new_im[:,:,i] = (cv2.morphologyEx(new_im[:,:,i], cv2.MORPH_CLOSE, np.ones((3,3))) > 0).astype(int)
+    circle3=cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(2,2))
+    for i in range(2, im.shape[2]):
+        new_im[:,:,i] = (cv2.morphologyEx(new_im[:,:,i], cv2.MORPH_CLOSE, circle3) > 0).astype(int)
         #new_im[:,:,i] = (cv2.morphologyEx(new_im[:,:,i], cv2.MORPH_CLOSE, np.ones((3,3))) > 0).astype(int)
 
     return new_im
@@ -80,7 +112,8 @@ class Transformation:
         self.gamma = gamma
         self.log = log
         self.sigmoid = sigmoid
-        self.affine = generate_affine(im, rotation=rotation,shear=shear)
+        self.rotation = rotation=rotation
+        self.shear=shear
         self.ratios = ratios
         self.vertical_flip = vertical_flip
         self.horizontal_flip = horizontal_flip
@@ -124,7 +157,7 @@ class Transformation:
             im_c[:,:,0] = skimage.exposure.adjust_sigmoid(im_c[:,:,0])
             
          
-        im_c = affine(im_c, self.affine)
+        im_c = affine_smooth(im_c, zoom=1.0, rotation=self.rotation, shear=self.shear, translation=(0, 0))
         im_c = resize_smooth(im_c, self.ratios)
         
         if self.vertical_flip:
@@ -139,7 +172,7 @@ class Transformation:
         return im_c
     
     def apply_inverse(self, im, normalize=True):
-        ##TODO apply log and sigmoid
+        ##TODO REVERSE AFFINE!!!
         
         if self.vertical_flip:
             im = im[::-1,:,:]
@@ -148,7 +181,7 @@ class Transformation:
             im = im[:,::-1,:]
             
         im = resize_smooth(im, 1 / self.ratios)
-        im = affine(im, self.affine.inverse)
+        im = affine_smooth(im, self.affine.inverse)
         
         if normalize:
             im[:,:,0] -= im[:,:,0].min()
